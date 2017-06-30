@@ -1,0 +1,47 @@
+#const
+ENTRYPOINT=	0x30400
+ENTRYOFFSET=0x400
+
+#file used
+BOOT=		boot.asm
+BOOTBIN=		boot.bin
+IMG=		ver1.img
+LOADER= 	loader.asm
+LOADERBIN= 	loder.bin
+
+
+#program & flags
+ASM=		nasm
+CC=			gcc
+LD=			ld
+DASM=		ndisasm
+DD=			dd
+
+ASMBFLAGS=
+ASMKFLAGS=	-f elf32
+CFLAGS=		-c -fno-builtin -m32 -fno-stack-protector
+LDFLAGS= 	-s -Ttext $(ENTRYPOINT) -m elf_i386
+DASMFLAGS= 	-u -o $(ENTRYPOINT) -e $(ENTRYOFFSET)
+DDFLAGS= 	bs=512 count=1 conv=notrunc
+
+.PHONY: clean buildImg
+
+target:$(IMG)
+
+buildImg:$(IMG) $(LOAERBIN)
+
+$(IMG):$(BOOTBIN)
+	$(DD) if=$< of=$@ $(DDFLAGS)
+
+$(BOOTBIN):$(BOOT)
+	$(ASM) $(ASMBFLAGS) -o $@ $<
+
+$(LOADERBIN):$(LOADER)
+	$(ASM) $(ASMBFLAGS) -o $@ $<
+
+
+
+clean:
+	rm 	-f 	$(wildcard *.bin)
+	
+

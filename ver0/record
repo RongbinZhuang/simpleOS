@@ -1,0 +1,1372 @@
+2017 4 12
+	ver1 boot.asm boot.bin
+		书《一个操作系统的实现》中第三页的代码boot.asm
+		因为书上写的是软盘驱动便在生成bin文件后没有继续
+2017 4 13
+	ver1 
+		安装bochs
+			 根据网站http://www.linuxdiyf.com/linux/15074.html进行配置
+		bochs使用流程
+			bximage
+				按照提示创建软盘印象文件 test_1.img
+			dd if=boot.bin of=test_1.img bs=512 count=1 conv=notrunc
+				dd为绝对扇区写入工具 
+					if 读入文件
+					of 写入文件
+					bs 写入的字节数
+					count 写入的blocks数量
+					conv=notrunc conv为转换形式 notrunc为无截断输出
+			bochs -f bochsrc
+				bochsrc为bochs启动的配置文件
+				存储在当前路径当中，因为所用bochs版本不同，部分路径不同
+				需要注意的是keymap的名字为x11而不是xll
+		运行完之后 bochs显示黑屏
+		查阅资料可知 进入的是debug状态 在终端输入c来进入编译
+		一切正常 mission completed
+	《一个操作系统的实现》书中前两章阅读完毕
+		新技能get apt-cache search 'hex.*(view|edit)'可用于搜索二进制查看器
+2017 4 14
+	2_pro pmtest1.asm
+		保护模式的尝试
+		pm.inc
+			宏定义文件 是《一个操作系统的实现》附带光盘里的文件
+2017 4 17
+	2_pro pm.inc 
+		pm.inc 从网上下载源码添加到项目当中
+		pmtest.asm
+			编译时多个标识无法识别 
+				十六进制数开头为0而不是o
+				大小写识别
+		Makefile
+			智能批处理文件 
+		pmtest.img 
+			通过bximage制作
+		pmtest.bin
+			通过pmtest.asm编译
+		调试的时候显示no bootable device
+			因为汇编代码中没有把第512字节的代码改成55aa
+			在将汇编执行代码写入软盘映像文件后修改映像文件
+				vim -b pmtest.img
+				:%!xxd // 将文件转化为16进制显示
+				修改000001f0 处最后四个字符为55aa
+				:%!xxd -r // 将文件恢复为2进制执行文件
+		bochsrc
+			修改img文件名为pmtest.img	
+2017 4 30
+	2_pro 一不小心把之前的文件都给删了- - 干脆全部重新用freedos做
+		1 在引导扇区里面进行保护模式转换
+			因为之前已经尝试过了 所以直接复制reference里的文件
+		1 在freedos里面进行保护模式转换
+			使用pmtest1b.asm 用nasm编译成pmtest1b.com
+			在dos系统下使用com文件加载
+			另外需要现在外面的ubuntu系统里面创建了软盘之后再进行挂载
+			因为系统本身/mnt没有软盘 所以要新建一个文件夹
+			然后把pm.img挂载上去之后复制pmtest1b.com取消挂载
+			然后在bochs仿真里面进行操作就可以看到pm.img里的com文件
+
+			需要注意的是pmtest1b.asm的起始地址从7c00h改为0100h
+			流程
+				准备gdt
+				用lgdt加载gdtr
+				打开A20地址线
+				修改cr0的PE位
+				跳转进入保护模式
+		保护模式的相关知识
+			GDT global descriptor table 3*8byte
+				desc_dummy
+				desc_code32
+				desc_video 显存段
+			descriptor 结构 8byte
+				7 段基址2(31-24)
+				6 5 属性
+					15 G 界限粒度 =0为字节 =1为4kb
+					14 D/B 
+						可执行代码段
+							D=1 默认使用32位地址及32位或8位操作符
+							D=0 默认使用16位地址及16位或8位操作符
+						向下扩展数据段
+							B=1 段上部界限为4gb
+							B=0 段上部界限为64kb
+						堆栈段的描述符
+							B=1 隐式堆栈访问指令使用32位esp
+							B=0 隐式堆栈访问指令使用16位sp
+					13 0
+					12 AVL 保留位 可供系统软件使用
+					11 10 9 8 段界限2(19-16)
+					7 P present 存在位
+					6 5 DPL descriptor privilege level 0>1>2>3
+					4 S =1为系统/门描述符 =0为代码或数据段描述符
+					3 2 1 0 TYPE
+						TYPE值	数据段/代码段		系统段/门描述符
+						0		只读				未定义
+						1		只读，已访问		可用286TSS
+						2		读/写				LDT
+						3		读/写，已访问		忙的286TSS
+						4		只读，向下扩展		286调用门
+						5		同上，已访问		任务门
+						6		读/写，向下扩展		286中断门
+						7		同上，已访问		286陷阱门
+						8		只执行				未定义
+						9		只执行，已访问		可用386TSS
+						A		执行/读				未定义
+						B		执行/读，已访问		忙的386TSS
+						C		只执行，一致码段	386调用门
+						D		同上，已访问		未定义
+						E		执行/读，一致码段	386中断门
+						F		同上，已访问		386陷阱门
+				4 3 2 段基址1(23-0)
+				1 0 段界限1(15-0)
+			selecotr 结构 2*8 bit
+				因为一个descriptor有8byte
+				所以RPL=TI=0时直接就是GDT里面偏移量
+				15-3 描述符索引
+				2 TI
+				1 0 RPL
+			gdtr 结构 一个寄存器 6byte
+				5-2 byte 32位基地址 dd define double word =4byte
+				1-0 byte 16位界限 dw define word =2byte
+			cr0 结构 32 bit
+				31 PG
+				30 CD
+				29 NW
+				18 AM
+				16 WP
+				5 NE
+				4 ET
+				3 TS
+				2 EM
+				1 MP
+				0 PE 保护模式开关 0为实模式 1为保护模式 
+			explaination of code segment
+				代码段属性\特权级	低->高	高->低	同级	
+				一致代码段			y		n		y		
+				非一致代码段		n		n		y
+				非一致数据段		n		y		y
+				一致代码段适用于不访问受保护资源和异常处理的系统代码
+				非一致使用于避免低特权级程序访问而被保护的系统代码
+		2 保护模式下的大内存跳转
+			汇编知识
+				EAX accumulator
+				EBX base
+				ECX counter
+				EDX devide
+				ESI/EDI source/destination index
+				EBP base pointer
+				ESP stack pointer
+				$$ 当前section开始的位置
+				$ 当前汇编行的偏移地址 jmp $ 会无限循环
+			makefile 知识
+				$(subst from,to,text) 
+					subst函数将text字符串中的子串from改成to
+					e.g.
+						SRC=pmtest.asm
+						BIN=$(subst .asm,.com,$(SRC))
+						则BIN=pmtest.com
+2017 5 1
+	日了狗 瞎鸡巴缩进结果把这里的记录给弄没了
+	在此之后每天都要退出保存一遍record不然无尽的u会把几天的内容都删掉的
+2017 5 2			
+	2_pro 保护模式的大跳转
+		2 在保护模式读写数据之后跳回实模式
+			label_go_back_to_real+3是整个程序之后的第一个指令
+			当程序结束之后又会跳回原来的cs处
+			返回dos命令
+				mov	ax	,4c00h
+				int	21h
+2017 5 7
+	2_pro 保护模式的优先级
+		3 ldt的尝试
+			- - 在函数的后头要记得加上ret语句不然就顺序执行了
+2017 5 9
+	2_pro 保护模式的优先级
+		3 特权级	
+			CPL	当前执行程序特权级	存储在cs和ss的第0位和第1位
+			DPL	段的特权级			段描述符当中
+				数据段	
+					规定了可访问此段的最低优先级
+				非一致代码段	
+					规定了访问此段的特定特权级
+				调用门	
+					规定了当前任务可访问的最低特权级
+				一致代码段和通过调用门访问的非一致代码段
+					规定了访问此段的最高特权级
+				TSS
+					规定了访问此TSS的最低特权级
+			RPL	请求的优先级		段选择子的第0位和第1位
+			jmp和call的直接转移
+				非一致代码段
+					CPL=DPL	RPL<=DPL
+				一致代码段
+					CPL>=DPL	
+				转移到一致代码段后CPL不变
+			门描述符结构 8byte
+				7 6 偏移(31-16)
+				5 4 属性
+					15 P
+					14 13 DPL
+					12 S
+					11 10 9 8 TYPE
+					7 0
+					6 0
+					5 0
+					4 3 2 1 0 Param Count
+				3 2 选择子
+				1 0 偏移(15-0)
+			门描述符类别
+				调用门
+					代码A通过调用门G访问代码B
+					特权级规则		call		jmp
+					一致代码段B			CPL<=DPL_G
+										RPL<=DPL_G
+										DPL_B<CPL
+					非一致代码段B	CPL<=DPL_G	CPL<=DPL_G
+									RPL<=DPL_G	RPL<=DPL_G
+									DPL_B<=CPL	DPL_B=CPL
+				中断门
+				陷阱门
+				任务门
+			jmp call
+				jmp	不会记录跳转之前的地址
+				call 会将当前cs和ip推入栈内 
+					retf=ret far 会取出cs ip ret只取出ip
+			TSS 100 BYTE
+				100
+				96		LDTSelector
+				92		gs
+				88		fs
+				84		ds
+				80		ss
+				76		cs
+				72		es
+				68		edi
+				64		esi
+				60		ebp
+				56		esp
+				52		ebx	
+				48		edx
+				44		ecx
+				40		eax
+				36		eflags
+				32		eip
+				28		gr3(pdbr)
+				24		ss2
+				20		esp2
+				16		ss1
+				12		esp1
+				8		ss0
+				4		esp0
+				0		
+2017 5 10
+	2_pro 保护模式的优先级
+		3 特权级跳转
+			使用retf从低特权级跳转到高特权级
+			使用调用门从高特权级跳到低特权级
+			使用ldt返回实模式
+		4 页式存储机制
+			页 一块内存
+				大小
+					80386中	4kb
+					奔腾中	2mb/4mb
+			地址种类
+				逻辑地址->分段机制->线性地址->分页机制->物理地址
+			实现虚拟内存
+			分页机制开关	cr0 PG位
+			PDE&PTE 32bit(Page-Directory Entry Page-Table Entry)
+						PDE					PTE
+				31-12	页表基址			页基址
+				11-9				avail
+				8					G
+					全局页		
+				7					PS
+					页大小		0 4k
+				6		0					D
+					写入标志
+				5					A
+					访问标志	第一次被加载时处理器清理后软件清理
+				4					PCD
+					缓冲许可	0为可被缓冲	1为不可被缓冲
+				3					PWT
+					缓冲策略	0为write back 1为write through
+				2					U/S
+					特权级	与R/W位共同决定读写权限
+					0	系统级别
+						CPL=0 1 2
+					1	用户及别
+						CPL=3
+						WP=0 in cr0则系统级可以强行写入
+						WP=1 系统级无法强行写入
+				1					R/W
+					读写权限	0为只读	1为可读写
+				0					P
+					是否在物理内存当中 p=1存在
+			TLB
+			cr3 PDBR (Page Directory Entry Register)
+				31-12	页目录基地址
+					高20位为页目录表首地址高20位 低12位为0 4kb对齐
+				4		PCD
+				3		PWT
+			通过int 15h来获取机器内存信息
+				准备寄存器
+				eax		0E820h	
+					实验中误写成0E829H 程序不会报错但获取不了内存值
+				ebx		第一次调用时为0 若后续没有值则为0
+					实验中用cmp ebx，0 ; jne 来判断是否结束
+				es:di	指向地址范围描述符结构ARDS
+					ARDS	20BYTE
+						0-3		BaseAddrLow
+						4-7		BaseAddrHigh
+						8-11	LengthLow
+						12-15	LengthHigh
+						16-19	Type
+							Type=1	AddressRangeMemory
+								可被使用的内存
+							Type=0	AddressRangeReserved
+								不可被操作系统使用的内存
+							Type=others
+								保留不可被使用的内存
+				ecx		es:di所指向地址范围描述符结构大小 通常20byte
+				edx		0534D4150H('SWAP')
+				中断调用之后
+				CF		错误标志 =1时有错误发生
+					实验中用jc来判断 若有则跳转到错误处理程序
+				eax		0534D4150H('SWAP')
+				es:di	返回的地址范围描述符结构指针与输入符相同
+				ecx		BIOS填充的字节数量 返回最小值为20byte
+				ebx		放置为等到下一个地址描述符所需要的后续值
+			根据内存信息对页表页目录表初始化	
+				但是书上的程序获取最大的一块连续可用内存有问题
+					mov	eax, [dwBaseAddrLow];
+					add	eax, [dwLengthLow];
+					cmp	eax, [dwMemSize]  ;    
+					jb	.2		  ;
+					mov	[dwMemSize], eax  ;
+					在这里memsize直接就取可用内存的最大地址值
+					但是因为可用内存他是分段的
+					所以这个内存到0之间的空间不一定都是可用的
+					而且在初始化页目录表的时候页目录表的基地址
+					并不是可用内存的基地址所以没法全部利用
+					所以可以用页目录表的地址来记录最大可用内存基地址
+					而用MemSize来记录这块内存的大小
+					比较的时候也是只要比较length和size的大小即可
+2017 5 11
+	2_pro 保护模式的页式存储 中断和异常
+		4 页式存储
+			迷之不能使用mov ds，ax
+			问题出在上一行的	mov	ax	,cs
+			而gdt中定义的cs是DA_C	是只执行的代码段
+			需要读取的话cs应该是DA_CR	意味着可执行可读的代码段
+			因为转移到ax里的是选择子不会对代码段进行读取
+			而当他转移到ds时因为要读取就会报错
+		5 中断
+			之前pmtest4.asm中间有太多的冗余 重新写一份代码
+			中断门 陷阱门 描述符结构 8byte
+				7 6		偏移(31-16)
+				5 4		属性
+					15		P
+					14 13	DPL
+					12		S
+					11-8	TYPE
+					7-5		0
+					4-0		保留
+				3 2		选择子
+				1 0		偏移(15-0)
+			保护模式中的中断
+				0-19	系统已定义中断
+				20-31	系统保留中断
+				32-255	用户定义中断
+			异常类型
+				fault
+					可被更正的异常,一旦被更正则程序可不失连续性地继续执行
+				trap
+					命令执行后立即报告的异常
+					异常被处理之后返回原异常处的下一条指令
+				abort
+					不可被更正的异常，一旦发生程序停止
+			中断类型
+				外部中断
+					可屏蔽中断
+					不可屏蔽中断
+				内部中断
+					中断向量表
+			8259A	可编程终端控制器
+				初始化	Initialization Command Word
+								主片		从片
+					ICW1		20H			A0h
+						7-5		0 for PC
+						4		1
+						3		1=LEVEL TRIGGERED 0=EDGE TRIGGERED
+						2		1=4字节中断向量	0=8字节中断向量
+						1		1=单个8259A		0=级联8259A
+						0		1=需要ICW4		0=不需要ICW4
+					ICW2		21H			A1H
+						7-3		80x86中断向量
+						2-0		000:80x86系统
+					ICW3		21H			A1H
+						主片
+							i	1=i级联从片		0=i无从片
+						从片
+							7-3		0
+							2-0		从片连的主片的IR号
+					ICW4		21H			A1H
+						7-5		0
+						4		1=SFNM		0=sequential
+						3-2		主/从缓冲模式
+						1		1=自动EOI	0=正常EOI
+						0		1=80x86模式	0=MCS 80/85
+				进一步设置	Operation Control Word
+					作用
+						屏蔽或打开外部中断
+						发送EOI给8259A来通知中断处理结束
+					OCW1
+						i	0=中断打开		1=中断屏蔽
+					OCW2
+						7	R
+						6	SL
+						5	EOI
+						4-3	0
+						L2
+						L1
+						L0
+					OCW3
+2017 5 12
+	2_pro 保护模式的中断和异常
+		5 intExp
+			nasm中的times指令相当于masm中的dup指令 用于重复
+			但是宏的重复需要使用与编译指令 %rep %endrep 因为宏比times先解析
+			显存的位置固定是在0b8000h	要在屏幕上打印就直接在这个段偏移打印
+				push	es
+				push	edi
+				mov		edi	,(80*6+40)*2
+				mov		ah	,0f3h	;白底蓝字
+				mov		al	,'b'
+				mov		[es:edi]	,ax
+			中断之后无法跳回实模式 迷
+2017 5 17
+	2_pro 保护模式的中断和异常
+		5 intExp
+			中断管理的实现
+				级联的8259A
+					一个8259A能够接受8个中断信号
+			中断跳转回实模式的时候有问题
+			但是实例给的程序也是没有跳回实模式的
+			实例只实现了时钟中断 就先放下吧
+			进入下一个章节先
+		第三章的保护模式最后对io只是提了一下没有深入讲
+	3_osInPro 突破512字节
+		1 loader
+			磁盘层次
+				扇区
+					磁盘上最小数据单元
+				簇
+					一个或多个扇区
+				分区
+					文件系统
+			软盘扇区分布
+				0		引导扇区
+					位置	名称			内容
+					0-2		BS_jmpBoot		一个短跳转指令
+					3-10	BS_OEMName		厂商名
+					11-12	BPB_BytsPerSec	每扇区字节数
+					13		BPB_SecPerClus	每簇扇区数
+					14-15	BPB_RsvdSecCnt	Boot记录占用多少扇区
+					16		BPB_NumFATs		共有多少个FAT表
+					17-18	BPB_RootEntCnt	根目录文件数最大值
+					19-20	BPB_TotSec16	扇区总数
+					21		BPB_Media		介质描述符
+					22-23	BPB_FATSz16		每FAT扇区数
+					24-25	BPB_SecPerTrk	每磁道扇区数
+					26-27	BPB_NumHeads	磁头数
+					28-31	BPB_HiddSec		隐藏扇区数
+					32-35	BPB_TotSec32	如果BPB_TotSec16=0 记录扇区数
+					36		BS_DrvNum		中断13的驱动器号
+					37		BS_Reserved1	未使用
+					38		BS_BootSig		扩展引导标志(29h)
+					39-42	BS_VolID		卷序列号
+					43-53	BS_VolLab		卷标
+					54-61	BS_FileSysType	文件系统类型
+					62-510	引导代码及其他	
+					511-512	结束标志		0xAA55
+
+					BPB BIOS Parameter Block 
+				1-9		FAT1
+					0-4		前两个FATEntry 保留不使用 故数据区第一个簇号为2
+					FATEntry 12bit
+						=0xFF8		文件最后一个簇
+						=0xFF7		坏簇
+						
+				10-18	FAT2
+				19-?	根目录区 BPB_RootEntCnt*32byte
+					Directory Entry 32byte
+						0-0xA		DIR_Name	文件名8字节，扩展名3字节
+						0xB			DIR_Attr	文件属性
+						0xC-0x15	保留位
+						0x16-0x17	DIR_WrtTime	最后一次写入时间
+						0x18-0x19	DIR_WrtDate	最后一次写入日期
+						0x1A-0x1B	DIR_FstClus	此条目对应的开始的簇号
+						0x1C-0x1F	DIR_fileSize	文件大小
+				？-2879 数据区
+			boot.asm
+				迷之无法仿真
+				重新用bximage新建一个软盘映像文件就可以boot了
+			BIOS int 13h
+				寄存器						|作用
+				----------------------------------------
+				ah=00h	dl=驱动器号			|复位软驱
+				----------------------------------------		
+				ah=02h	al=要读扇区数		|从磁盘将数据读入es:bs指向
+				ch=磁道号	cl=起始扇区号	|的缓冲区中
+				dh=磁头号	dl=驱动器号		|
+				es:bx->数据缓冲区			|
+			软盘容量
+				两面即磁头号 0 1
+				每面80个磁道 0-79
+				每个磁道18个扇区 1-18
+				每个扇区512字节
+				总容量 2×80×18×512=1.44m
+			将ref里面的文件copy了一遍 没报错但是结果不对
+			还是静下心把原理搞懂把
+2017 5 20
+	3_osInPro 加载loader	
+		1_loader
+			int		10h
+				实模式下的视频服务
+				ah=13h	写字符串
+					al=写模式 bh=页码 bl=颜色 cx=字符串长度 dh=行 dl=列 bp=字符串偏移量
+				显示的字符中ah为颜色 
+					高4位代表背景色 低4位代表前景色
+					背景色最高位为1的话 字符是会闪烁的
+			load 成功 但是load之后文件显示的字符一直在闪 - -		
+		2_elfForm
+			linux下的汇编
+				因为是64位系统 在编译的时候选项应该是
+					nasm -f elf64 hello.asm -o hello.o
+					ld -s hello.o -o hello
+			nasm与c/cpp函数互相调用
+				在nasm中对于被调用的函数
+					global myprint
+				在cpp中对于被调用的函数和调用的函数都需要声明
+					extern "C" {被调用的函数声明和调用的函数声明 }
+			ELF executable and linkable format
+				ELF header
+				program header 0-n
+				section 0-m
+				section header 0-m
+2017 5 25
+	3_osInPro 加载elf文件
+		2_elfForm
+			扇区的计算
+			成功加载elf文件 no kernel
+			注意loader中文件开头的数据定义要用jmp跳过
+			否则数据会当成代码处理发生未知错误
+2017 5 27
+	3_osInPro 加载简单内核
+		3_simpleKernel 
+			之前一直跑不出来 因为两个error
+			第一个是label_difference 里面最后跳到了root_begin去
+			第二个是readSector 没有把fatentry所在扇区读进来
+			跳入保护模式的routine
+				lght
+				cli
+				打开a20地址总线
+				改变cr0
+				jmp dw cs:ip
+			成功载入内核 但代码很多都是抄的
+			尽管思路和之前的练习差不多 还是要整理一下整个过程
+			内核打开过程
+			boot
+				结构要点
+					总大小只有512byte 最后一个word为aa55所以尽快跳到loader
+				步骤
+					在根目录里找到loader文件
+						用int 13h先初始化软驱	
+						遍历整个root的目录区
+							wRootDirSizeForLoop中存储着遍历的数目 
+							cmp WORD[wRootDirSizeForLoop],0
+							jz	LABEL_NO_LOADERBIN
+							dec WORD[wRootDirSizeForLoop]
+						在当前目录区搜索每一个扇区
+							ReadSector 读取扇区
+						扇区里面的每个文件都和loaderfilename比较
+							文件名的每个字符逐个比较 loader  bin
+								只要有一个字符不同则跳出循环
+						找到文件之后将文件位置推入堆栈
+					加载loader.bin文件
+						通过上一个步骤找到的扇区号
+						调用getFatEntry来找到文件入口
+					将控制权交给loader
+						jmp		BaseOfLoader:OffserOfLoader
+			loader
+				步骤
+					寻找操作系统可用内存
+						int 15h
+							eax 0e820h
+							ecx 20 ;=地址范围描述符的大小
+							edx 0534D4150h ;='SWAP'
+						地址范围描述符结构
+						将获得的内存信息循环打印出来
+					寻找kernel文件
+						与在boot里面寻找loader的方式类似
+							因为要节省boot的空间
+							并没有让其分离出来做成一个函数
+							让loader 和 boot 分别调用
+					加载kernel文件
+						加载完之后就要关掉软驱动
+					跳入到保护模式
+						加载全局描述符表
+						关中断
+						打开第20位地址线
+						修改cr0打开保护模式
+						跳转到32位代码区
+					保护模式的操作
+						加载各个段选择子
+							mov		ax	,SelectorVideo
+							mov		gs	,ax
+						显示内存信息
+							调用DispStrProMod
+						开启段页式存储方式
+							SetupPaging
+						初始化内核
+							将内核文件copy到某个位置- -
+					将控制权交给kernel
+			kernel
+				simpleKernel中只显示一个字符
+				在之后所有操作系统的动作都是由kernel完成的
+				接下来的事情就是扩展kernel
+			汇编总结
+				equ 和 dd dw区别
+					equ用来进行类似于宏定义的行为 不占用空间
+					dd dw等用于声明一个空间以备之后使用类似与常量
+						若在程序开头声明则需要用jmp来跳过
+2017 5 29
+	3_osInPro 加载简单内核
+		4_devPro 整理文件并重新处理引导
+			boot.asm 引导
+				汇编的参数传递
+					1	寄存器传递
+					2	约定的存储单元传递参数 相当于全局变量`
+					3	利用堆栈传递参数
+						push	ax
+						call	foo
+						foo: 
+							mov		bp	,sp
+							mov		ds	,[bp+4]
+					4	利用call后续区传递参数 数据定义在代码段当中
+						call	foo
+						dw		offset	str
+						dw		seg		str
+						foo:
+							mov		bp	,sp
+							mov		si	,[bp+2];call 返回地址
+							mov		ds	,cs:[si+2]	
+							mov		si	,cs:[si]
+							add		[bp+2]	,4 ;修改返回地址	
+2017 5 30
+	3_osInPro 加载简单内核
+		4_devPro 引导函数整理
+			org 07c00h 设置的原因
+				引导扇区在加载的时候是自动加载到07c00h处的
+				也就是说所写的地址偏移都是基于07c00h的
+				然而在实际运行时机器计算偏移地址都是相对于0000h算的 
+				所以加上org 07c00h来让程序中的所有偏移量都再加上07c00h
+				实验当中将07c00h改为06c00h 程序仍然能跑但是无法将字符串打印出来
+				后来在打印字符串即调用int 10h之前 令es+100h就可以显示正确`
+			Print 将字符串打印到指定位置
+				int 10h 打印服务
+					入口参数
+						ah=13h	显示字符串
+						al=01h
+							bit1 1=字符串含有属性
+							bit0 1=移动光标 0=否
+						bh=00h 视频区的页数 
+						bl=07h al的bit1=0时决定字符串显示属性 
+							bit7 1=背景闪烁
+							bit6-bit4 背景rgb
+							bit3 1=前景加亮
+							bit2-bit0 前景rgb
+						cx=字符串长度
+						dh dl 第dh行 第dl行显示
+						es:bp 字符串地址
+					出口参数
+						无
+				另一种实现方法是直接向显存写入
+					传入的高8位为显示属性 第八位为字符ascii
+					mov		ax	,0b800h
+					mov		es	,ax
+					mov		ax	,tmp
+					mov		[es:(80*row+col)*2]		,ax
+				PRINT函数中字符串相关信息通过堆栈传入 位置信息直接存在dh dl中
+				下面的几个封装了print某字符串的打印函数来节省main长度
+			READERSECTOR 读扇区的函数
+				int 13h 直接磁盘服务
+					函数传入的参数是绝对扇区号 
+					要将其转为柱面号 起始扇区 柱头号
+					转化公式 x/l=y x%2=z y/2=m y%2=n
+					z+1为起始扇区号 m为柱面号 n为磁头号 l为每磁道扇区数量
+					入口参数
+						ah=02h 读扇区 =03h 写扇区
+						al=01h 要读扇区数
+						ch=柱面 cl=起始扇区 dh=磁头 
+						dl=驱动器 
+							00h-07h: fd 
+							80h-0ffh: hd
+						es:bx=缓冲区地址
+							读到的数据转移到es:bx当中 
+							在接下来的过程中要比较文件
+					出口参数
+						cf=0 操作成功 ah=00h al=传输的扇区数
+						cf=1 操作失败 ah=状态代码
+2017 6 1
+	3_osInPro 加载简单内核
+		4_devPro 引导函数整理
+			方向标志位df操作
+				cld => df=0
+				std => df=1
+				df=0 lodsb => si++
+				df=1 lodsb => si--
+			fat12根目录条目结构 32byte
+				0-0ah		文件名8byte 扩展名8byte
+				0bh			文件属性
+				0ch-015h	保留位 
+				016h-017h	最后一次写入时间
+				018h-019h	最后一次写入日期
+				01ah-01bh	条目对应的开始簇号
+				01ch-01fh	文件大小
+				对比文件名的时候每次di +=20h byte
+				512字节扇区里有10h 个文件目录
+			getFatEntry 函数作用暂时不清楚 不调用也可以直接跳到loader中
+			loader中直接向显存写入数据有个位置迷之不能打印 
+				0b800h:(80*10+40)*2
+			在函数当中不需要对abcd寄存器进行push 
+			若有保存必要可以在函数外面保存
+			通过堆栈传递参数的由调用者push和pop 函数使用时只是在对应地址取值
+2017 6 2
+	3_osInPro 加载简单内核
+		4_devPro 引导函数整理
+			找到loder之后的逻辑
+				从找到的那个文件条目中的01ah位置获得文件开始簇号
+				在这里每一个簇只包含一个扇区 所以簇号和扇区是相同的
+				这里的簇号从地址上看是数据区的偏移扇区号
+				deltaSectorNo=boot扇区号加fat占用扇区-2
+				偏移扇区号加上数据区起始扇区号可以得到物理扇区号
+				然后将这个物理扇区号里的数据读出来
+				getFatEntry是根据原来的扇区号获得文件的下一扇区号
+				当文件大小小于一个扇区时 起始扇区号就是终止扇区号
+				调用getFatEntry之后不需要再次读取扇区
+			GETFATENTRY
+				函数逻辑
+					因为这里需要用到readSector来读fat
+					并且每次需要读到2个扇区也就是1k空间
+					在函数开始的地方开辟了4k空间进行存储
+					实际上这样读取fat是有冗余的
+					因为每循环一次读取的fat都是相同的
+					但是重新读新的一个扇区数据的时候都要重新读一遍fat
+					另外在读了fat之后要对扇区×1.5这个不是很懂
+					从代码上看这个操作是要从簇号来观察是否需要移位
+					因为fat本身是12byte，两个fat占用3个8byte
+					在程序的末尾将其与0fffh相与目的是判断其时候是最后一个簇
+		4_devPro loader函数整理
+			loader程序逻辑
+				int 15h 查看内存信息
+				在磁盘中找到kernel
+				跳入保护模式
+				启动分页机制
+				初始化内核
+			section的意义不明
+			成功找到了kernel
+2017 6 3
+	3_osInPro 加载简单内核
+		4_devPro Loader函数整理
+			函数中的push之后对于esp的变化
+				push	ax		=> esp-=2
+				push	eax		=> esp-=4
+				push	addr	=> esp-=4
+			成功进入保护模式并且把内存信息打印出来
+			成功进入内核但没搞动分页机制是怎么启动的
+			初始化kernel的内容也不太清楚
+			成功在asm和c中互相调用
+				在c生成文件的时候要加入编译选项 -m32保证生成的是32位文件
+			hlt 汇编指令中让处理器暂停而响应中断的命令
+			popf/popfd	将栈顶弹入eflags的低16位/32位
+			sti/cli 允许中断/关中断 只能在内核模式下使用不能在用户模式下使用
+				一般在对ss sp赋值的时候要调用cli 然后在完成复制后sti
+				因为中断发生后会将正在执行的地址推入ss:sp中
+			有bug 把ref/chp5/i 里的程序搬过去后对中断没有反应
+			在ref/chap5/i里做好镜像之后bochs仿真是可以通过的
+			一怒之下把当前文件夹里所有内容都删掉了 明天全部重头来过！！！
+2017 6 4
+	3_osInPro 加载简单内核
+		4_devPro 重构boot & loader
+			boot
+				空文件的话fat条目01ah是00
+					所以加载loader的时候要当心
+				int 10h ah=0eh 迷之不能打点
+					单步调试看到是有运行的
+					最终改成直接向显存写入
+				fat表
+					第0个字节 0f0h 软盘 0f8h 硬盘
+					第1,2个字节 0ffh 表示fat文件分配
+				GETFATENTRY
+					两个簇占三个字节 从低到高数
+						第一个字节是第一个簇号的高八位
+						第二个字节低四位是第一个簇号高4位 
+						高四位是第二簇号的低4位
+						第三个字节是第二个簇号的低八位
+					得到的簇号要×1.5 因为一个字节8位 一个fat表项12位
+						乘了1.5之后就可以得到实际偏移的字节数
+					总的字节偏移量除以每个扇区所占字节量后
+						商就是在fat表项中偏移的扇区号 
+						余数就是在这个扇区里的第几个字节
+					读的话是直接读进ax所以读两个字节
+						因为ax里面存的是之前除2之后的商 
+						所以是处在较小的一位上的
+						比如簇号是2 ax=2*3/2=3 
+						而第2簇号位置在第3字节和第4字节上
+						比如簇号是3 ax=3*3/2=4 
+						第三簇号位置在第4字节和第5字节上
+					此外还需要判断一个簇号是奇数还是偶数
+						若簇号是奇数则读了16位之后的簇号只需与操作
+						若簇号是偶数需要先右移4位之后再进行与操作
+			loader
+				刚开始用print函数时会崩溃
+					打印字符的时候调用int 10h
+					int 10h 的调用程序需要用到栈 所以栈的初始化需要先定义好
+					在数据段后面部分用times
+				修改了dispmem里面对memsize的计算
+			需要保存的寄存器数据还是应该由调用者自行push而不是在函数里面push
+2017 6 5
+	3_osInPro 加载简单内核
+		4_devPro 内核跳转和拓展
+			loader.asm
+				elf结构
+					elf header 34byte
+						0x00-0x0e	e_ident[16]
+							0x00-0x04		".ELF"
+						0x0e-0x10	e_type			
+							文件类型
+						0x11-0x13	e_machine		
+							i386 体系结构 =3 
+						0x14-0x17	e_version		
+						0x18-0x1b	e_entry			
+						0x1c-0x1f	e_phoff			
+							program header 的偏移量
+						0x20-0x23	e_shoff			
+							section header 的偏移量
+						0x24-0x27	e_flags			
+						0x28-0x29	e_ehsize		
+						0x2a-0x2b	e_phentsize		
+						0x2c-0x2d	e_phnum			
+						0x2e-0x2f	e_shentsize		
+						0x30-0x31	e_shnum			
+						0x32-0x33	e_shstrndx		
+					program header e_phentsize*e_phnum
+						0x00-0x03	p_type	
+							段的类型
+						0x04-0x07	p_offset
+							第一个字节在文件中的偏移
+						0x08-0x0b	p_vaddr
+							内存中的虚拟地址
+						0x0c-0x0f	p_paddr
+							物理地址保留`
+						0x10-0x13	p_filesz
+							段在文件中的长度
+						0x14-0x17	p_memsz
+							段在内存中的长度
+						0x18-0x1b	p_flags
+							与段相关的标志
+						0x1c-0x1f	p_align
+							段在文件以及内存中如何对齐
+					section e_shnum*each_size
+					section header e_shentsize*e_shnum
+				memcpy
+					修改了memcpy的函数
+						一处是关于将寄存器入栈和出栈的
+							我将ebp的使用改成了直接对esp的相对位置寻址
+							push	ebp
+							mov		ebp		,esp
+							mov		edi		,[ebp+8]
+							改成了
+							mov		edi		,[esp+8]
+						一处是关于esi edi复制的
+							mov		al	,[ds:esi]
+							inc		esi
+							mov		BYTE[es:edi]	,al
+							inc		edi
+							改成了
+							lodsb
+							stosb
+						还有一处是修改了循环的判断
+							因为原本的循环里面每次都是dec ecx之后在jz
+							所以我改用了loop
+							但是用了loop之后循环的次数是少了一次的
+							copyLoop:
+								cmp		ecx		,0
+								jz		.popReg
+								...
+								dec		ecx
+								jmp		.copyLoop
+							改成了
+							copyLoop:
+								jz		.popReg
+								...
+								loop	.copyLoop
+							最终改成了能运行的
+							inc		ecx
+							copyLoop:
+								...
+								loop	.copyLoop
+							- -原先的结构有没有copy前面的Loop都是可以的
+							改用loop之后若是没有copy之前的inc是会报错的
+							原因是若ecx本身是0的话loop循环第一次就会报错
+						第二处改变实际上是有问题的
+							因为这里实际上是把ds:esi转换到es:edi处
+							而stosb是会转换到ds:edi处
+							但是因为目前ds=es所以改了之后并没有报错
+			kernel.asm
+				跳转到内核当中了
+					刚开始因为还是使用的在实模式下的写内存 
+					所以没有显示 其实跳入内核时已经在保护模式下了
+					应该用selector来表示段 而gs在loader里面就是selectorVideo
+				内核的中断处理也实现了 虽然各种函数的调用都是乱七八糟的
+				刚开始没法响应键盘中断将其打印出来是因为没有在hlt之前sti
+			中断初始化的逻辑
+				初始化idt
+					const.h		
+						定义中断描述符表idt的大小=256
+					global.h
+						声明idt idt_ptr
+					protect.h
+						声明gate数据结构用于开辟idt空间
+					start.c
+						使用idt idt_ptr来开辟空间存放idt
+				中断处理函数编写
+					kernel.asm
+						声明所有中断处理函数
+						基本逻辑是有一个统一的中断入口函数
+						中断发生时中断会将当前中断号入栈然后调用入口函数
+						中断分有错误码和无错误码
+							有错误码的先入栈错误码 再入栈中断向量号
+							无错误码的先入栈0ffffffffh 再入栈向量号
+						这里的中断入口再调用c语言里定义的中断处理函数
+					protect.c
+						中断处理函数
+						先清空屏幕前五行
+						再把中断的信息打印出来
+					kliba.asm
+						这里重新写了一个函数来打印错误信息 用不同的颜色打印
+					klib.c
+						这里定义了一个函数来显示整数
+				设置idt
+					protect.c
+						调用函数来把所有在kernel声明的中断函数调用加载到idt上
+						这里的设置idt类似与boot里面descriptor的宏定义
+						把中断处理函数转化为中断门描述符
+					关键的地方在于中断函数的声明
+						kernel.asm中用global声明
+						protect.c中再次用void声明
+						若注释掉protect.c中的内容则在生成.o文件时会报错未声明
+						若注释掉kernel.asm中的内容则在链接的时候会报未定义的引用
+				初始化i8259
+					i8259.c
+						根据规则向i8259对应的端口写入数据
+						但是这个只是对外部中断有用
+						内部中断并不受8259控制
+				加载idt
+					kernel.asm
+						调用lidt来加载idt
+				开中断
+					kernel.asm
+						sti
+						hlt
+			内核的中断已经完成 但是显然文件层次很乱
+			接下来需要先将文件的层次分出来用Makefile组织起来
+			然后就是进程的实现啦
+2017 6 7
+	4_osInOrder 整理了原本的文件夹 原文的文件应用和放置反正我很不习惯
+		重要！！！
+			之前因为一不小心把编译器用了g++ 而不是gcc
+			导致编译出来的汇编文件函数名有出入 一直都没有链接成功
+			原因是因为cpp和c的不同
+				c编译之后的函数名就是原来的函数名
+				cpp编译之后汇编函数名会在前面加_以及一些类型定义
+			这样就造成了cpp与汇编的链接没有那么方便
+			但是cpp仍然可以与汇编链接
+			方法是通过向c靠拢在汇编文件里要用的函数外部增加声明
+				extern "C" { }
+		1_progess 中断实现
+			把asm c文件分开两个目录放了 代码也整理好了 
+			对kernel进行链接的时候要注意把kernel.o放在第一位
+			这样生成的.bin文件0x30400处才会是kernel的代码
+			但是暂时中断还没调出来
+2017 6 8
+	4_osInOrder 进程的实现
+		1_progess
+			昨天中断没跑出来的原因是idt的赋值弄错了
+			实现进程
+				在gdt中加入ldt tss
+				初始化ldt tss
+				跳转到ring1
+				进程体准备
+				初始化进程表
+				启动一个进程
+					从ring0跳转到ring1 iretd
+				实现时钟中断程序
+					时钟中断属于外部中断
+			直接实现时钟中断然后用iretd会发生page fault错误
+2017 6 9
+	4_osInOrder 进程的实现
+		1_process 单进程的实现
+			step 1
+				准备进程代码
+					mainC.c 中的TestA代码
+					记得在mainC.h中先声明
+					然后在mainC函数中会用到TestA的函数首地址
+				初始化进程表
+					进程表结构 PROCESS1
+						STACK_FRAME		regs
+							u32		gs
+							u32		fs
+							u32		es
+							u32		ds
+							u32		edi	
+							u32		esi		
+							u32		ebp
+							u32		kernel_esp
+							u32		ebx
+							u32		edx
+							u32		ecx
+							u32		eax
+							u32		retaddr
+							u32		eip
+							u32		cs
+							u32		eflags
+							u32		esp
+							u32		ss
+						u16		ldt_sel
+						DESCRIPTOR		ldts[LDT_SIZE]
+						u32		pid	
+						char	p_name[16]
+					proc_table NR_TASKS*PROCESS
+					mainC.c中对上述结构进行初始化
+				idt tss 初始化
+					initLibC.c
+						在gdt中加入进程的ldt
+						在gdt中加入tss
+					kernel.asm
+						加载tss
+				从ring0跳转到ring1
+					kernel.asm 中的restart
+						将p_proc_ready加载到ldt中
+						初始化tss中的栈
+						改变寄存器值
+						跳转
+			step 2
+				中断开始输出
+					在initLibC.c中i8259要对0号外部中断使能
+					在中断中要对INT_M_CTL端口写入EOI
+						保证这个中断会终止
+						否则中断只会启动一次
+					然后itetd返回
+				保护现场
+					寄存器值的保护
+						push and pop
+					堆栈的保护
+						内存栈和进程栈的切换
+								mov		esp		,StackTop
+								mov		esp		,[p_proc_ready]
+					lea reg16,mem16
+						把mem16所指向的偏移地址赋给16位通用寄存器
+				中断嵌套
+					在保护了现场之后就可以恢复中断响应
+						sti
+					当退出中断的时候要恢复现场需要关闭中断响应
+						cli	
+					限制嵌套层数
+						全局变量
+		1_process 多进程的实现
+			step 1
+				mainC.c
+					多个进程体准备
+					通过一个新的结构体存储进程的进程体和堆栈
+						TASK
+							task_f	initial_eip
+							int		stacksize
+							char	name[32]
+					进程表的初始化
+						用for循环来初始化
+				initLibC.c
+					用for循环为每个进程初始化一个IDT
+				kernel.asm
+					在中断的处理部分修改当前进程
+					在处理程序完成准备跳转执行程序时加载不同的lldt 堆栈
+			step 2
+				根据minix来整理代码形成扩展性更好的框架
+					int_handler:
+						call save
+						屏蔽同一中断
+						向i8259发送EOI
+						打开中断响应
+						调用中断处理函数
+						关闭中断响应
+						取消同一中断的屏蔽
+						ret
+					save
+						主要用来保护现场
+						将各种寄存器push
+						然后判断是否是重入
+							重入则不用将堆栈切换到内核栈
+							push不同的地址让之后的ret用
+						jmp回中断处理处
+					restart
+						用于恢复现场和切换进程
+						内含.reenter
+						若是重入则不切换进程
+						iretd
+2017 6 10
+	4_osInOrder 系统调用
+		1_progress 系统调用和简陋的优先级调度算法
+			系统调用的过程
+				在initLibC.c中先初始化系统调用中断
+				c程序调用汇编程序
+					get_ticks()
+				汇编程序内部调用中断函数
+					int XXX
+				中断函数使得优先级从ring1跳到ring0
+					ring0的函数再做操作
+			调整时钟中断的频率 修改8253
+			进程调度 优先级算法
+				对于每个进程都增加一个ticks的变量
+				当跳入调度的中断后对当前进程的ticks--
+				然后在比较各个进程的ticks来判断是否切换进程
+			整个调度算法是很简单的
+		2_inOut 键盘中断
+			目前的中断逻辑
+				中断触发后进入了kernel中相应的中断标签
+				然后中断标签将统一一个流程
+					call save
+					根据标号调用真正中断处理程序
+					restart
+				这个统一流程是通过宏定义来设置的
+			给键盘设置中断处理程序
+				disable_irq
+				put_irq_handler
+				enable_irq
+			但是现在键盘响应了一次之后就没反应
+			而在统一流程里面是有给i8259传送EOI的
+			键盘设备逻辑
+				键盘编码器
+					硬件基础
+						8048以及其兼容芯片
+					编码内容
+						动作
+							按下
+							保持被按住状态
+							弹起
+						内容
+							与当前动作相关的是具体哪个按键
+				键盘控制器
+					计算机主板用于与8259以及8048通信
+					扫描码
+						MakeCode
+						BreakCode
+				每次获得扫描码会触发8259中断
+				当缓冲区没有被清空之前不会再触发中断
+				所以需要计算机在获得了键盘中断之后立即读取缓冲区
+			键盘处理逻辑
+				init_keyboard
+					初始化
+				keyboard_handler
+					将8042中的数据存储以待之后使用
+				keyboard_read
+					对存储后的数据进行分析
+			在keyboard_read函数当中实现了对单个显示字母的响应
+2017 6 11
+	4_osInOrder tty
+		2_inOut 完善键盘驱动
+			在tty中用in_process 对功能键进行处理
+			在keyboard中对打印字符进行处理
+		2_inOut tty切换
+			改变显存位置
+				VGA
+					Registers
+						ADDR 0x3ce
+						DATA 0x3cf
+						通过对addr输入具体地址后在用data来输入数据
+						达到对寄存器组内不同寄存器赋值的操作
+			通过对键盘的响应修改显示器显存位置
+				shift+UP 向上滚15行
+			多个tty实现
+				多个console控制台
+				分离tty的输入和输入
+				每个tty对应一段显存
+			tty的切换通过alt+fn来实现
+				alt+f1 alt+f2 ubuntu已经定义了回应
+				bochs中对于alt+f4 alt+f7已经定义了回应不好用
+				所以最终是用f5 f6来回应
+				为了使用三个还是分别在f3 f5 f6处各自做了处理
+			对于回车键和退格键加入处理在out_char处
+			对于键盘上的三个led灯亮灭的操作通过对8048写数据来实现
+			对于小键盘的数字识别就跳过了 因为笔记本上没有这东东
+		2_inOut 任务和用户进程
+			printf函数
+				不同进程对应不同终端
+				printf打印也要根据中端来打印
+				用了c标准库函数里的东东
+				itoa只在windows下有 用sprintf替换
+				智障了 - -
+				作者并没有用标准库 string.h是自己定义的一个文件
+				结果我调标准库调了大半天
+				编译选项里fno-builtin都给注释掉了
+				printf逻辑
+					先用vsprintf将要替换的字符替换掉
+					然后调用系统调用来将字符打印出去
+			原来的系统调用并没有接受参数
+			在kernel里面是需要改的
+			完成了在不同终端打印的功能
+			但是很迷的每次在不同终端打印的时候都会自动跳转到那个终端
+			作者绝逼是故意的
+			在out_char里面会有个flush刷新当前屏幕
+			之后加了个判断也不说清楚
+			就是判断如果out_char的是当前的屏幕就设置光标和地址
+			然而我觉得设置光标是可以的 但是干嘛要刷新初始地址
+		把三个用户进程打印都开了之后发觉还是会有影响
+		实验之后发现滚屏之后还是会切换进程 
+2017 6 12
+	4_osInOrder 进程间通信 下篇啦 mark下
+2017 6 14
+	4_osInOrder 进程间通信
+		3_procComm 信息通信的系统中断
+			- - sys_call 增加参数的时候会出现page fault
+				作者把数据结构给扩展了- -
+				不- - 不是数据结构的锅 大概是调用的函数的锅- - 
+2017 6 15
+	4_osInOrder 进程间通信 
+		3_procComm 关于sys_call page fault
+			事实证明就是write有问题
+			当初设计的write第三个参数是进程的结构体指针
+			而现在这个结构体指针被推到第四位了
+			将push edx和原来的push DWORD[p_proc_ready]
+			换下位置就可以消除错误
+			然而当初设计write的时候结构就有问题
+			这样子另外的函数调用第三个参数就不好用了
+			作者把它放弃了又重新用了个新的函数调用printx
+2017 6 16
+	4_osInOrder 进程间通信 
+		3_procComm printx sendrec
+			消息传输的机制
+				每一个进程体维护一个变量来表示当前进程的状态
+					就绪 挂起 运行
+				微内核
+					操作系统内核只维护最基本必要的任务
+					系统调用只有用于进程通信
+					其他的调用则将其放置到某一任务当中
+					当其他用户进程需要用到对应进程时
+					通过进程间通信将任务中的信息传递给用户级通信
+				当前通信步骤
+					用户程序发起调用
+					系统程序中断跳转到内核级
+					内核级调用保存用户程序信息并且调用对应系统任务接受信息
+					对应系统接受信息之后返回信息时再次调用通信系统调用
+					通信系统调用获得系统任务的信息之后将信息传送回用户进程
+					用户进程得到消息之后继续其运行
+				同步机制
+					当前通信步骤采用同步机制
+					好处在于通信系统调用不需要维护一个消息队列
+					在一个进程发起通信想要获得信息之后便停下来等待
+					只有当消息回来之后才可以继续下一步骤
+				死锁
+					a向b获取信息 b向c获取信息 c向a获取信息
+				assert() panic()
+					用于debug 打印当前错误信息
+		4_fileSys 硬盘驱动
+			添加两个任务
+				task_hd 硬盘驱动 
+					硬盘驱动结构文件系统发来的消息然后回复参数信息
+				task_fs 文件系统
+					文件系统将硬盘参数打印出来					
+					利用了进程通信机制
+				当前文件系统结构
+					superblock	存放metadata
+					sector map	记录扇区使用情况
+					inode map	记录文件信息
+						源于unix文件系统的核心结构
+					root		数据区
+				硬盘分区操作
+					/sbin/fdisk hd80m.img
+						书上是从柱面开始 然而实验中已经是扇区开始了
+						柱面据说已经被废弃- - 
+						而且第一个扇区不是1而是2048
+						据说是与当前bios的启动方式相适应
+				现在的驱动好像变了很多？
+					把作者的文件放到自己文件夹下bochs没法用
+				mbr master booter record 主引导记录 0-445
+					检查硬件装置并装载引导程序
+				dpt分区表 446-510 4*16byte
+					分区表结构 4×16 01be-01fd
+						0		00h 非活动分区 80h活动分区
+						1-3		开始的磁头 扇区 柱面
+							1		磁头号
+							2-3	
+								0-5		起始扇区号
+								6-15	柱面号
+						4		文件系统标志 
+							hd80m.img 第一个分区是Linux的为83h
+						5-7		结束磁头和结束扇区结束柱面
+						8-12	分区起始的相对扇区号
+						13-16	分区总的扇区数
+					分区
+						硬盘最多含有4个主分区
+							因为分区表只有4个表项
+						每个主分区可以改造成扩展分区后继续分若干个逻辑分区
+						扩展分区划分逻辑分区的记录方式是类似于链表结构
+							每个扩展分区第一个扇区与主引导扇区结构类似
+							分区表内都指向下一个逻辑分区
+				dbr活动分区
+				实际使用并不需要鸟1-3 5-7 只用理8-12 13-16 - -
+			成功将硬盘的参数以及分区信息打印出来
+2017 6 17
+	4_osInOrder 文件系统
+		4_fileSys 完善硬盘驱动程序
+			读写 io控制
+		4_fileSys 文件系统编写
+			静态的存储方法
+				
+			动态的管理方法
+
+			无法打印处文件系统的总体框架- - 一个赋值之后系统就迷之卡住- - 
+2017 6 22
+	4_osInOrder 文件系统
+2017 6 30
+	4_osInOrder 文件系统
+		隔了太久没有弄了
+		都不知道之前的步骤是从那里开始出问题的
+		之前的那个bug还在
+		就是启动之后就莫名的把屏幕一直打印到下一个显存的位置
+		不知道那里出错了- -
+		最后还是把文件夹删了这一部分重写好了
+		hd.c 硬盘驱动
+		- - 我的妈 重装了一遍系统之后之前的所有版本跑出来好像都有点问题了
+		作者在这里也是悄悄的把结构体大改了一遍
+		干脆就此弃坑开始自己的64的版本把
+		把这个研究了上传到git就是了
+			
+
+	
+	
+			
+			
+				
+
+						
+
+
+								
+						
+
+
+
+
+
+
+
+	
+
