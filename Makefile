@@ -4,4 +4,5 @@ upload:
 	git add .
 	git commit -m "naive"
 	git push simpleOS master &>~/log/git &
+	echo "push done"
 
