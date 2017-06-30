@@ -13,8 +13,11 @@ ver0  
 Alpha  			
 ---
 `正在编辑的内容 实验的机器是x86 _ 64架构`
-* ubuntu查看系统信息 lscpu
-* record		记录编辑过程
+* 相关信息
+	* ubuntu查看系统信息 lscpu
+	* intel架构开发人员手册64位
+* record		记录操作系统制造过程
+* design		记录操作系统整体架构
 
 Beta  				
 ---
