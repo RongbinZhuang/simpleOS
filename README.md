@@ -1,7 +1,6 @@
 simpleOS
 ===
-[My profile](www.zhuangrb.com)<br>
-`OS developed by myself`
+`OS developed by [RongbinZhuang](www.zhuangrb.com)`
 
 ver0   
 ---
