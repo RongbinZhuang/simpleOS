@@ -1,6 +1,6 @@
 simpleOS
 ===
-'My profile zhaungrb.com'
+`My profile zhaungrb.com`
 `OS developed by myself`
 
 ver0   
