@@ -1,6 +1,6 @@
 simpleOS
 ===
-`OS developed by`[RongbinZhuang](www.zhuangrb.com)
+`OS developed by`[RongbinZhuang](https://zhuangrb.com/)
 
 ver0   
 ---
