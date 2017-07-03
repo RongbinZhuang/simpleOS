@@ -4,7 +4,8 @@
 	此外现在uefi也逐渐替代了bios所以换作uefi来启动
 2017 7 3
 	《UEFI原理与编程》 戴正华著
-	UEFI开发环境 EDK2
+	UEFI开发环境 EDK2 https://github.com/tianocore/edk2
+		
 
 		
 		
