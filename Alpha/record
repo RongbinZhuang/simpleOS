@@ -5,6 +5,39 @@
 2017 7 3
 	《UEFI原理与编程》 戴正华著
 	UEFI开发环境 EDK2 https://github.com/tianocore/edk2
+2017 7 4
+	UEFI(Unified Extensible Firmware Interface) 环境相当烦阿
+	参考网址	https://github.com/tianocore/tianocore.github.io/wiki/EDK-II   
+	环境		ubuntu16.04 gcc 5.4
+		相关工具
+			sudo apt-get install build-essential uuid-dev iasl git gcc-5 nasm
+		配置命令(环境放到根目录的src中)
+			mkdir ~/src
+			cd ~/src
+			git clone https://github.com/tianocore/edk2
+			cd edk2
+			make -C BaseToolls
+			source edksetup.sh
+		构建Hello World(MdeModulePkg)
+			修改 Conf/target.txt
+				from
+				ACTIVE_PLATFORM       = Nt32Pkg/Nt32Pkg.dsc
+				TOOL_CHAIN_TAG        = MYTOOLS
+				TARGET_ARCH           = IA32
+				to
+				ACTIVE_PLATFORM       = MdeModulePkg/MdeModulePkg.dsc
+				TOOL_CHAIN_TAG        = GCC5
+				TARGET_ARCH           = IA32 X64
+			build
+			ls Build/MdeModule/DEBUG_GCC5/X64/HelloWorld.efi 
+		构建OVMF(Open Virtual Machine Firmware)
+			修改 Conf/target.txt
+				ACTIVE_PLATFORM       = OvmfPkg/OvmfPkgX64.dsc
+			build
+			ls Build/
+				
+		
+		
 		
 
 		
