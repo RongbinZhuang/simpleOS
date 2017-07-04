@@ -34,7 +34,16 @@
 			修改 Conf/target.txt
 				ACTIVE_PLATFORM       = OvmfPkg/OvmfPkgX64.dsc
 			build
-			ls Build/
+		run OVMF with QEMU(虚拟机)
+			安装qemu
+				sudo apt-get install qemu
+			在一个新的文件夹下运行
+				mkdir ~/run-ovmf
+				cd ~/run-ovmf
+				cp  ~/src/edk2/Build/Ovmf3264/DEBUG_GCC5/FV/OVMF.fd bios.bin
+				mkdir hda-contents
+			qemu-system-x86_64 -pflash bios.bin -hda fat:hda-contents -net none
+				然而这个命令会报一堆warning 目测选项还没设置好
 				
 		
 		
