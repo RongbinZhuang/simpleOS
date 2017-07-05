@@ -44,6 +44,16 @@
 				mkdir hda-contents
 			qemu-system-x86_64 -pflash bios.bin -hda fat:hda-contents -net none
 				然而这个命令会报一堆warning 目测选项还没设置好
+				WARNING: Image format was not specified for 'bios.bin' and probing guessed raw.Automatically detecting the format is dangerous for raw images, write operations on block 0 will be restricted.Specify the 'raw' format explicitly to remove the restrictions.
+				vvfat hda-contents chs 1024,16,63
+				WARNING: Image format was not specified for 'json:{"fat-type": 0, "dir": "hda-contents", "driver": "vvfat", "floppy": false, "rw": false}' and probing guessed raw.Automatically detecting the format is dangerous for raw images, write operations on block 0 will be restricted.Specify the 'raw' format explicitly to remove the restrictions.
+				warning: TCG doesn't support requested feature: CPUID.01H:ECX.vmx [bit 5]
+2017 7 5
+	DUET(Developer's UEFI Emulation)
+		. edksetup.sh BaseTools
+			#每次运行都需要从某个位置拷贝环境
+		build -p DuetPkg/DuetPkgX64.dsc -a X64 -t GCC49
+
 				
 		
 		
