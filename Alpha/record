@@ -52,7 +52,11 @@
 	DUET(Developer's UEFI Emulation)
 		. edksetup.sh BaseTools
 			#每次运行都需要从某个位置拷贝环境
-		build -p DuetPkg/DuetPkgX64.dsc -a X64 -t GCC49
+		build -p DuetPkg/DuetPkgX64.dsc -a X64 -t GCC5
+2017 7 12
+	- - 仍然没有用DUET制作好启动盘
+	命令总是蜜汁报错
+	明明要做的是usb boot disk结果总是报错说 not a floppy disk
 
 				
 		
