@@ -57,7 +57,10 @@
 	- - 仍然没有用DUET制作好启动盘
 	命令总是蜜汁报错
 	明明要做的是usb boot disk结果总是报错说 not a floppy disk
-
+2017 7 20
+	跳过duet的制作好了- -
+	之后应该可以用grub来启动的
+	
 				
 		
 		
